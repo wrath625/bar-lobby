@@ -34,13 +34,13 @@ import cloudDownload from "@iconify-icons/mdi/cloud-download";
 import { delay } from "$/jaz-ts-utils/delay";
 import { computed, inject, Ref, ref } from "vue";
 import { useTypedI18n } from "@renderer/i18n";
+import { me } from "@renderer/store/me.store";
 
 import TeamParticipant from "@renderer/components/battle/TeamParticipant.vue";
 import ContextMenu from "@renderer/components/common/ContextMenu.vue";
 import Flag from "@renderer/components/misc/Flag.vue";
 import { useRouter } from "vue-router";
 import { Player } from "@main/game/battle/battle-types";
-import { me } from "@renderer/store/me.store";
 
 const { t } = useTypedI18n();
 const router = useRouter();
@@ -121,9 +121,12 @@ async function makeBoss() {
 }
 
 async function addFriend() {
-    // await api.comms.request("c.user.add_friend", {
-    //     user_id: props.player.user.userId,
-    // });
+    try {
+        await window.tachyon.request("friend/sendRequest", { to: props.player.user.userId });
+        console.log(`Adding friend ${props.player.user.userId}`);
+    } catch (error) {
+        console.error("Failed to add friend:", error);
+    }
 }
 </script>
 

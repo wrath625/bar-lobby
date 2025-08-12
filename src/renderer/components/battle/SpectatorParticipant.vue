@@ -97,9 +97,12 @@ async function makeBoss() {
 }
 
 async function addFriend() {
-    // await api.comms.request("c.user.add_friend", {
-    //     user_id: props.player.user.userId,
-    // });
+    try {
+        await window.tachyon.request("friend/sendRequest", { to: props.player.user.userId });
+        console.log(`Adding friend ${props.player.user.userId}`);
+    } catch (error) {
+        console.error("Failed to add friend:", error);
+    }
 }
 </script>
 

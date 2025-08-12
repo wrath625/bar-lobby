@@ -73,57 +73,143 @@ import checkThick from "@iconify-icons/mdi/check-thick";
 import closeThick from "@iconify-icons/mdi/close-thick";
 import deleteIcon from "@iconify-icons/mdi/delete";
 import messageReplyText from "@iconify-icons/mdi/message-reply-text";
-import { computed, inject, Ref } from "vue";
+import { computed, ref, onMounted, onUnmounted, inject, Ref, watch } from "vue";
 
 import Button from "@renderer/components/controls/Button.vue";
 import Flag from "@renderer/components/misc/Flag.vue";
 import { useRouter } from "vue-router";
 import { useTypedI18n } from "@renderer/i18n";
+import { db } from "@renderer/store/db";
+
 const { t } = useTypedI18n();
 
 const router = useRouter();
 
 const props = defineProps<{
     userId: number;
-    type: "outgoing_request" | "incoming_request" | "friend";
+    type: "friend" | "outgoing_request" | "incoming_request";
 }>();
 
-// TODO fetch from store of users
-const user = computed(() => {
-    return {
-        userId: props.userId,
-        username: "User Name",
-        countryCode: "US",
-        isOnline: true,
-        battleStatus: {
-            battleId: 0,
-        },
-    };
+const emit = defineEmits<{ (event: "friendActionCompleted"): void }>();
+
+// Store user data locally
+const userData = ref<{
+    userId: number;
+    username: string;
+    countryCode: string;
+    isOnline: boolean;
+    battleStatus: { battleId: number };
+} | null>(null);
+
+// Function to fetch user data
+async function fetchUserData() {
+    try {
+        const storedUser = await db.users.get(props.userId.toString());
+        if (storedUser) {
+            userData.value = {
+                userId: props.userId,
+                username: storedUser.username,
+                countryCode: storedUser.countryCode || "US",
+                isOnline: storedUser.status !== "offline",
+                battleStatus: {
+                    battleId: storedUser.battleRoomState?.teamId || 0,
+                },
+            };
+            console.log(`✅ Loaded user data for ${props.userId}:`, storedUser.username);
+        } else {
+            // Fallback to basic data
+            userData.value = {
+                userId: props.userId,
+                username: `User ${props.userId}`,
+                countryCode: "US",
+                isOnline: false,
+                battleStatus: { battleId: 0 },
+            };
+            console.log(`⚠️ No user data found for ${props.userId}, using fallback`);
+        }
+    } catch (error) {
+        console.warn("Failed to get user from db:", error);
+        // Fallback to basic data
+        userData.value = {
+            userId: props.userId,
+            username: `User ${props.userId}`,
+            countryCode: "US",
+            isOnline: false,
+            battleStatus: { battleId: 0 },
+        };
+    }
+}
+
+// Fetch user data on mount and set up periodic refresh
+onMounted(async () => {
+    await fetchUserData();
+
+    // Don't subscribe here - subscriptions are handled centrally in me.store
+    // when the friend list is loaded
 });
 
+// Set up periodic refresh to catch when user data becomes available
+onMounted(() => {
+    const refreshInterval = setInterval(async () => {
+        if (!userData.value || userData.value.username === `User ${props.userId}`) {
+            await fetchUserData();
+        }
+    }, 1000); // Check every second
+
+    // Clean up interval on unmount
+    onUnmounted(() => {
+        clearInterval(refreshInterval);
+    });
+});
+
+// Watch for changes in the database and refresh user data
+watch(
+    () => props.userId,
+    async () => {
+        await fetchUserData();
+    }
+);
+
+// Get user data from local state
+const user = computed(
+    () =>
+        userData.value || {
+            userId: props.userId,
+            username: `User ${props.userId}`,
+            countryCode: "US",
+            isOnline: false,
+            battleStatus: { battleId: 0 },
+        }
+);
+
 async function cancelRequest() {
-    // await api.comms.request("c.user.rescind_friend_request", {
-    //     user_id: props.user.userId,
-    // });
-    // api.session.onlineUser.incomingFriendRequestUserIds.delete(props.user.userId);
-    // api.session.onlineUser.outgoingFriendRequestUserIds.delete(props.user.userId);
+    try {
+        await window.tachyon.request("friend/cancelRequest", { to: props.userId.toString() });
+        console.log(`Cancelling friend request to user ${props.userId}`);
+        emit("friendActionCompleted");
+    } catch (error) {
+        console.error("Failed to cancel friend request:", error);
+    }
 }
 
 async function acceptRequest() {
-    // await api.comms.request("c.user.accept_friend_request", {
-    //     user_id: props.user.userId,
-    // });
-    // api.session.onlineUser.incomingFriendRequestUserIds.delete(props.user.userId);
-    // api.session.onlineUser.outgoingFriendRequestUserIds.delete(props.user.userId);
-    // api.session.onlineUser.friendUserIds.add(props.user.userId);
+    try {
+        await window.tachyon.request("friend/acceptRequest", { from: props.userId.toString() });
+        console.log(`Accepting friend request from user ${props.userId}`);
+        emit("friendActionCompleted");
+    } catch (error) {
+        console.error("Failed to accept friend request:", error);
+    }
 }
 
 async function rejectRequest() {
-    // await api.comms.request("c.user.reject_friend_request", {
-    //     user_id: props.user.userId,
-    // });
-    // api.session.onlineUser.incomingFriendRequestUserIds.delete(props.user.userId);
-    // api.session.onlineUser.outgoingFriendRequestUserIds.delete(props.user.userId);
+    try {
+        await window.tachyon.request("friend/rejectRequest", { from: props.userId.toString() });
+        console.log(`Rejecting friend request from user ${props.userId}`);
+        emit("friendActionCompleted");
+    } catch (error) {
+        console.error("Failed to reject friend request:", error);
+    }
 }
 
 async function viewProfile() {
@@ -160,9 +246,13 @@ async function inviteToParty() {
 }
 
 async function removeFriend() {
-    // await api.comms.request("c.user.remove_friend", {
-    //     user_id: props.user.userId,
-    // });
+    try {
+        await window.tachyon.request("friend/remove", { userId: props.userId.toString() });
+        console.log(`Removing friend ${props.userId}`);
+        emit("friendActionCompleted");
+    } catch (error) {
+        console.error("Failed to remove friend:", error);
+    }
 }
 </script>
 

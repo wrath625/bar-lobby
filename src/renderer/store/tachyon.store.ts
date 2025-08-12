@@ -77,6 +77,15 @@ export async function initTachyonStore() {
 
         // Fetch matchmaking queues when connected
         fetchAvailableQueues();
+
+        // Load friend list when connected
+        import("@renderer/store/me.store").then(({ requestFriendList }) => {
+            requestFriendList().catch((error) => {
+                console.warn("Failed to load friend list on connection:", error);
+            });
+        });
+
+        // Friend event handlers are now set up at module level (like matchmaking.store)
     });
 
     window.tachyon.onDisconnected(() => {

@@ -31,11 +31,10 @@ SPDX-License-Identifier: MIT
                         <div v-if="messagesUnread" class="unread-dot"></div>
                     </Button>
                     <Button
-                        v-if="me.isAuthenticated"
                         v-tooltip.bottom="t('lobby.navbar.tooltips.friends')"
                         v-click-away:friends="() => (friendsOpen = false)"
                         :class="['icon', { active: friendsOpen }]"
-                        @click="friendsOpen = true"
+                        @click="friendsOpen = !friendsOpen"
                     >
                         <Icon :icon="accountMultiple" :height="40" />
                     </Button>
